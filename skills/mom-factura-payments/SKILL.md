@@ -107,11 +107,14 @@ If both `paymentInfo.amount` and `products` are provided, they must match:
 
 ## Webhook (Payment Confirmation)
 
-Reference payments are confirmed via webhook. Configure the `webhook` URL in your `apiConfigs` document. E-kwanza payments use status polling for confirmation.
+All deferred payments (Bank Reference and E-kwanza) are confirmed via webhook. Configure the `webhook` URL in your `apiConfigs` document.
 
-**Webhook payload (POST to your URL):**
+When a payment is confirmed, the API sends **two sequential events**:
+
+**Event 1: `payment.confirmed`** — Sent immediately after order status is updated to PAID:
 ```json
 {
+  "event": "payment.confirmed",
   "merchantTransactionId": "abc123...",
   "ekwanzaTransactionId": "EKZ456...",
   "operationStatus": "1",
@@ -119,11 +122,23 @@ Reference payments are confirmed via webhook. Configure the `webhook` URL in you
 }
 ```
 
+**Event 2: `invoice.created`** — Sent after invoice PDF is generated and uploaded:
+```json
+{
+  "event": "invoice.created",
+  "merchantTransactionId": "abc123...",
+  "ekwanzaTransactionId": "EKZ456...",
+  "operationStatus": "1",
+  "operationData": { ... },
+  "invoiceUrl": "https://invoice-momenu.toquemedia.net/invoices/..."
+}
+```
+
+Non-paid events (operationStatus 3, 4, 5) are sent without the `event` field for backward compatibility.
+
 **operationStatus values:** `"1"` Paid · `"3"` Cancelled/Expired · `"4"` Failed/Refused · `"5"` Error
 
 **Fallback (status endpoints):**
-
-See [references/STATUS-POLLING.md](references/STATUS-POLLING.md) for status endpoint details.
 
 **E-kwanza:** GET `/api/payment/ekwanza/status/:code` - Returns `status: "paid"` or `"pending"`
 **Reference:** GET `/api/payment/reference/status/:operationId` - Returns `payment.status`
@@ -156,4 +171,4 @@ Error format: `{ "success": false, "error": "message", "code": "ERROR_CODE" }`
 - Phone format: 244XXXXXXXXX (12 digits)
 - IVA defaults to 14%. Use 0 for exempt.
 - Invoice PDFs hosted on CDN, returned as `invoiceUrl`
-- MCX is immediate; Reference is confirmed via webhook; E-kwanza uses status polling
+- MCX is immediate; Reference and E-kwanza are confirmed via webhook (status polling as fallback)
